@@ -104,10 +104,22 @@ def execution_engine(df, target, problem_type, plan):
 
     X_train = X_test = y_train = y_test = None
 
-    # FIRST ensure split happens
+    # STEP 1: SPLIT FIRST
     if "split_data" in plan:
         X_train, X_test, y_train, y_test = split_data(df, target)
 
+    # STEP 2: FORCE NUMERIC SAFETY
+    X_train = X_train.apply(pd.to_numeric, errors="coerce").fillna(0)
+    X_test = X_test.apply(pd.to_numeric, errors="coerce").fillna(0)
+
+    # STEP 3: ENCODE TARGET IF CLASSIFICATION
+    if problem_type in ["Binary Classification", "Multi-class Classification"]:
+        if y_train.dtype == "object":
+            le = LabelEncoder()
+            y_train = le.fit_transform(y_train)
+            y_test = le.transform(y_test)
+
+    # STEP 4: TRAIN MODELS
     for step in plan:
 
         if step == "train_logistic":
