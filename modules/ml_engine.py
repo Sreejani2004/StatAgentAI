@@ -15,15 +15,18 @@ def clean_data(df):
 
     df = df.copy()
 
-    # drop fully empty columns
     df = df.dropna(axis=1, how="all")
 
-    # fill missing values (simple strategy)
     for col in df.columns:
-        if df[col].dtype == "object":
-            df[col] = df[col].fillna(df[col].mode()[0] if not df[col].mode().empty else "missing")
-        else:
+
+        if pd.api.types.is_numeric_dtype(df[col]):
             df[col] = df[col].fillna(df[col].median())
+        else:
+            mode_val = df[col].mode()
+            if not mode_val.empty:
+                df[col] = df[col].fillna(mode_val[0])
+            else:
+                df[col] = df[col].fillna("missing")
 
     return df
 
