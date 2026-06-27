@@ -108,5 +108,4 @@ For deployment, LLM features may be disabled or replaced with fallback logic.
 
 Sreejani Roy
 
-M.Sc. Statistics and Computing
-Banaras Hindu University
+M.Sc. Statistics and Computing, Banaras Hindu University
