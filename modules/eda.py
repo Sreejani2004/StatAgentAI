@@ -19,7 +19,7 @@ def data_quality_report(df):
     duplicate_pct = (duplicate_rows / rows) * 100 if rows > 0 else 0
 
     numeric_df = df.select_dtypes(include="number")
-    categorical_cols = df.select_dtypes(include="object").columns
+
 
     # remove ID-like columns
     id_like_cols = []
