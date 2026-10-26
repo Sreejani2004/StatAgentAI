@@ -1,6 +1,8 @@
+
+import pandas as pd
+
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import LabelEncoder
 
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -9,94 +11,147 @@ from sklearn.metrics import accuracy_score, r2_score
 
 
 # ==========================================================
-# BASIC CLEANING
+# 1. BASIC CLEANING
 # ==========================================================
-import pandas as pd
-
 def clean_data(df):
 
-    df = df.copy()
+    df = pd.DataFrame(df).copy()
 
-    # force valid dataframe
-    df = pd.DataFrame(df)
-
-    # drop fully empty columns
+    # Remove completely empty columns
     df = df.dropna(axis=1, how="all")
 
+    # Replace positive and negative infinity with missing values
+    df = df.replace(
+        [float("inf"), float("-inf")],
+        float("nan")
+    )
+
+    # Fill missing values
     for col in df.columns:
 
-        # skip invalid columns safely
-        try:
-            if pd.api.types.is_numeric_dtype(df[col]):
-                df[col] = df[col].fillna(df[col].median())
-            else:
-                mode_val = df[col].mode()
-                df[col] = df[col].fillna(mode_val[0] if not mode_val.empty else "missing")
+        if pd.api.types.is_numeric_dtype(df[col]):
 
-        except Exception:
-            # fallback safety
-            df[col] = df[col].fillna("missing")
+            median_val = df[col].median()
+
+            if pd.isna(median_val):
+                median_val = 0
+
+            df[col] = df[col].fillna(median_val)
+
+        else:
+
+            mode_val = df[col].mode()
+
+            fill_value = (
+                mode_val.iloc[0]
+                if not mode_val.empty
+                else "missing"
+            )
+
+            df[col] = df[col].fillna(fill_value)
 
     return df
 
+
 # ==========================================================
-# ENCODING
+# 2. ENCODING
 # ==========================================================
 def encode_data(df):
 
     df = df.copy()
-    le = LabelEncoder()
 
     for col in df.columns:
-        if df[col].dtype == "object":
-            df[col] = le.fit_transform(df[col].astype(str))
+
+        if (
+            df[col].dtype == "object"
+            or isinstance(df[col].dtype, pd.CategoricalDtype)
+            ):
+            encoder = LabelEncoder()
+
+            df[col] = encoder.fit_transform(
+                df[col].astype(str)
+            )
 
     return df
 
 
 # ==========================================================
-# SPLIT DATA
+# 3. SPLIT DATA
 # ==========================================================
 def split_data(df, target):
+
+    if target not in df.columns:
+        raise ValueError(
+            f"Target column '{target}' was not found in the dataset."
+        )
 
     X = df.drop(columns=[target])
     y = df[target]
 
-    return train_test_split(X, y, test_size=0.2, random_state=42)
+    if X.shape[1] == 0:
+        raise ValueError(
+            "No feature columns are available for training."
+        )
+
+    if y.nunique() < 2:
+        raise ValueError(
+            "The target must contain at least two distinct values."
+        )
+
+    return train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42
+    )
 
 
 # ==========================================================
-# MODEL TRAINING HELPERS
+# 4. MODEL TRAINING HELPERS
 # ==========================================================
 def train_logistic(X_train, y_train):
+
     model = LogisticRegression(max_iter=1000)
     model.fit(X_train, y_train)
+
     return model
 
 
 def train_rf_classifier(X_train, y_train):
-    model = RandomForestClassifier()
+
+    model = RandomForestClassifier(random_state=42)
     model.fit(X_train, y_train)
+
     return model
 
 
 def train_rf_regressor(X_train, y_train):
-    model = RandomForestRegressor()
+
+    model = RandomForestRegressor(random_state=42)
     model.fit(X_train, y_train)
+
     return model
 
 
 def train_linear_regression(X_train, y_train):
+
     model = LinearRegression()
     model.fit(X_train, y_train)
+
     return model
 
 
 # ==========================================================
-# EXECUTION ENGINE
+# 5. EXECUTION ENGINE
 # ==========================================================
 def execution_engine(df, target, problem_type, plan):
 
+    if target is None or target not in df.columns:
+        raise ValueError(
+            "A valid target column must be selected."
+        )
+
+    # Clean and encode the dataset
     df = clean_data(df)
     df = encode_data(df)
 
@@ -104,40 +159,94 @@ def execution_engine(df, target, problem_type, plan):
 
     X_train = X_test = y_train = y_test = None
 
-    # STEP 1: SPLIT FIRST
+    # Split data before training
     if "split_data" in plan:
-        X_train, X_test, y_train, y_test = split_data(df, target)
 
-    # STEP 2: FORCE NUMERIC SAFETY
-    X_train = X_train.apply(pd.to_numeric, errors="coerce").fillna(0)
-    X_test = X_test.apply(pd.to_numeric, errors="coerce").fillna(0)
+        X_train, X_test, y_train, y_test = split_data(
+            df, target
+        )
 
-    # STEP 3: ENCODE TARGET IF CLASSIFICATION
-    if problem_type in ["Binary Classification", "Multi-class Classification"]:
-        if y_train.dtype == "object":
-            le = LabelEncoder()
-            y_train = le.fit_transform(y_train)
-            y_test = le.transform(y_test)
+        # Convert features to numeric values
+        X_train = X_train.apply(
+            pd.to_numeric, errors="coerce"
+        )
 
-    # STEP 4: TRAIN MODELS
+        X_test = X_test.apply(
+            pd.to_numeric, errors="coerce"
+        )
+
+        # Replace missing and infinite feature values
+        X_train = X_train.replace(
+            [float("inf"), float("-inf")],
+            float("nan")
+        ).fillna(0)
+
+        X_test = X_test.replace(
+            [float("inf"), float("-inf")],
+            float("nan")
+        ).fillna(0)
+
+        # Ensure all feature values are finite
+        if not (
+            X_train.map(lambda x: pd.notna(x) and abs(x) != float("inf"))
+            .all()
+            .all()
+        ):
+            raise ValueError(
+                "Training features contain invalid values."
+            )
+
+        if y_train.isna().any() or y_test.isna().any():
+            raise ValueError(
+                "The target contains missing values."
+            )
+
+    else:
+        raise ValueError(
+            "The execution plan must include 'split_data'."
+        )
+
+    # Train models according to the plan
     for step in plan:
 
         if step == "train_logistic":
-            models["logistic"] = train_logistic(X_train, y_train)
+
+            if problem_type in [
+                "Binary Classification",
+                "Multi-class Classification"
+            ]:
+                models["logistic"] = train_logistic(
+                    X_train, y_train
+                )
 
         elif step == "train_random_forest":
-            if problem_type in ["Binary Classification", "Multi-class Classification"]:
-                models["rf"] = train_rf_classifier(X_train, y_train)
-            else:
-                models["rf"] = train_rf_regressor(X_train, y_train)
+
+            if problem_type in [
+                "Binary Classification",
+                "Multi-class Classification"
+            ]:
+                models["rf"] = train_rf_classifier(
+                    X_train, y_train
+                )
+
+            elif problem_type == "Regression":
+                models["rf"] = train_rf_regressor(
+                    X_train, y_train
+                )
 
         elif step == "train_linear":
-            models["linear"] = train_linear_regression(X_train, y_train)
 
+            if problem_type == "Regression":
+                models["linear"] = train_linear_regression(
+                    X_train, y_train
+                )
+
+    # Keep the original three-value return format
     return models, X_test, y_test
 
+
 # ==========================================================
-# EVALUATION ENGINE
+# 6. EVALUATION ENGINE
 # ==========================================================
 def evaluate_models(models, X_test, y_test, problem_type):
 
@@ -145,23 +254,28 @@ def evaluate_models(models, X_test, y_test, problem_type):
         "rf": "Random Forest",
         "logistic": "Logistic Regression",
         "linear": "Linear Regression",
-        "random_forest": "Random Forest",
-        "xgb": "XGBoost",
-        "svm": "Support Vector Machine",
-        "arima": "ARIMA",
-        "lstm": "LSTM"
+        "random_forest": "Random Forest"
     }
 
     scores = {}
 
     for key, model in models.items():
 
-        preds = model.predict(X_test)
+        predictions = model.predict(X_test)
 
-        if "Regression" in problem_type:
-            score = r2_score(y_test, preds)
+        if problem_type == "Regression":
+
+            score = r2_score(y_test, predictions)
+
+        elif problem_type in [
+            "Binary Classification",
+            "Multi-class Classification"
+        ]:
+
+            score = accuracy_score(y_test, predictions)
+
         else:
-            score = accuracy_score(y_test, preds)
+            continue
 
         scores[model_names.get(key, key)] = score
 
@@ -169,9 +283,15 @@ def evaluate_models(models, X_test, y_test, problem_type):
 
 
 # ==========================================================
-# SELECT BEST MODEL
+# 7. SELECT BEST MODEL
 # ==========================================================
 def select_best_model(scores):
+
+    if not scores:
+        return {
+            "best_model": None,
+            "best_score": None
+        }
 
     best_model = max(scores, key=scores.get)
 
@@ -182,69 +302,47 @@ def select_best_model(scores):
 
 
 # ==========================================================
-# REFLECTION AGENT
+# 8. REFLECTION AGENT
 # ==========================================================
 def reflection_agent(best, problem_type):
 
-    model = best["best_model"]
-    score = best["best_score"]
+    model = best.get("best_model")
+    score = best.get("best_score")
 
-    # Metric name
-    if "Regression" in problem_type:
+    if model is None or score is None:
+        return """
+## 🤖 Reflection Agent
+
+No model could be selected.
+
+Please check the dataset, target column, and training plan.
+"""
+
+    if problem_type == "Regression":
         metric = "R² Score"
     else:
         metric = "Accuracy"
 
-    # Model-specific explanation
-    if model == "Random Forest":
-        reason = (
-            "Random Forest achieved the highest performance because it can capture "
-            "non-linear relationships, is robust to noisy data, and reduces "
-            "overfitting through ensemble learning."
+    reasons = {
+        "Random Forest": (
+            "Random Forest can capture nonlinear relationships "
+            "and combines multiple decision trees."
+        ),
+        "Logistic Regression": (
+            "Logistic Regression provides an interpretable "
+            "baseline for classification."
+        ),
+        "Linear Regression": (
+            "Linear Regression models a numeric outcome using "
+            "a linear relationship with its predictors."
         )
+    }
 
-    elif model == "Logistic Regression":
-        reason = (
-            "Logistic Regression performed best because the relationship between "
-            "the predictors and target appears relatively simple and linearly "
-            "separable while remaining highly interpretable."
-        )
-
-    elif model == "Linear Regression":
-        reason = (
-            "Linear Regression was selected because the target variable appears "
-            "to have a strong linear relationship with the predictors."
-        )
-
-    elif model == "XGBoost":
-        reason = (
-            "XGBoost achieved the highest score by combining multiple decision "
-            "trees through gradient boosting to learn complex patterns."
-        )
-
-    elif model == "Support Vector Machine":
-        reason = (
-            "Support Vector Machine performed best because it identified an "
-            "effective decision boundary between classes."
-        )
-
-    elif model == "ARIMA":
-        reason = (
-            "ARIMA was selected because it effectively models trends and "
-            "temporal dependencies in time-series data."
-        )
-
-    elif model == "LSTM":
-        reason = (
-            "LSTM captured long-term sequential dependencies better than the "
-            "other forecasting models."
-        )
-
-    else:
-        reason = (
-            "This model achieved the highest evaluation score among all "
-            "candidate models."
-        )
+    reason = reasons.get(
+        model,
+        "This model achieved the highest evaluation score "
+        "among the evaluated candidate models."
+    )
 
     return f"""
 ## 🤖 Reflection Agent
@@ -261,9 +359,9 @@ def reflection_agent(best, problem_type):
 
 ### 🚀 Recommended Next Steps
 
-- Perform hyperparameter tuning (Grid Search or Random Search).
-- Evaluate using cross-validation for more reliable performance estimates.
-- Explore feature engineering to improve predictive power.
-- Compare with additional advanced models if needed.
-- Validate the model on unseen data before deployment.
+- Test the model using cross-validation.
+- Explore hyperparameter tuning.
+- Consider feature engineering.
+- Validate performance on unseen data.
 """
+
