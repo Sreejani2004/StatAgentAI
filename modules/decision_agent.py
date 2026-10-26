@@ -150,7 +150,7 @@ def detect_problem_type(df, target, date_cols):
     if target is None:
         return {
             "problem": "Clustering / Unsupervised Learning",
-            "confidence": 80,
+            "confidence": "High",
             "reason": "No obvious target variable was detected."
         }
 
@@ -164,7 +164,7 @@ def detect_problem_type(df, target, date_cols):
         if pd.api.types.is_numeric_dtype(target_series):
             return {
                 "problem": "Time Series Forecasting",
-                "confidence": 95,
+                "confidence": "High",
                 "reason": f"Datetime column(s) detected ({', '.join(date_cols)}) with a numeric target."
             }
 
@@ -179,7 +179,7 @@ def detect_problem_type(df, target, date_cols):
         if unique_values == 2:
             return {
                 "problem": "Binary Classification",
-                "confidence": 98,
+                "confidence": "High",
                 "reason": "Target contains exactly two unique values."
             }
 
@@ -187,7 +187,7 @@ def detect_problem_type(df, target, date_cols):
         elif unique_values <= 10:
             return {
                 "problem": "Multi-class Classification",
-                "confidence": 92,
+                "confidence": "High",
                 "reason": f"Target has {unique_values} distinct classes."
             }
 
@@ -195,7 +195,7 @@ def detect_problem_type(df, target, date_cols):
         else:
             return {
                 "problem": "Regression",
-                "confidence": 95,
+                "confidence": "High",
                 "reason": "Target is continuous with many unique values."
             }
 
@@ -209,13 +209,13 @@ def detect_problem_type(df, target, date_cols):
         if unique_values == 2:
             return {
                 "problem": "Binary Classification",
-                "confidence": 98,
+                "confidence": "High",
                 "reason": "Categorical target with two classes."
             }
 
         return {
             "problem": "Multi-class Classification",
-            "confidence": 95,
+            "confidence": "High",
             "reason": f"Categorical target with {unique_values} classes."
         }
 def recommend_statistical_tests(df, target, problem, numeric_cols, categorical_cols):
