@@ -28,7 +28,7 @@ def detect_id_columns(df):
 
             unique_ratio = df[col].nunique() / len(df)
 
-            if unique_ratio > 0.95:
+            if unique_ratio > 0.90:
                 id_cols.append(col)
 
     return id_cols
