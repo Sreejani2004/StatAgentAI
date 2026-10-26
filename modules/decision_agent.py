@@ -55,8 +55,7 @@ def detect_datetime_columns(df):
 
                 converted = pd.to_datetime(
                     df[col],
-                    errors="coerce",
-                    infer_datetime_format=True
+                    errors="coerce"
                 )
 
                 # At least 80% of non-null values should parse as dates
