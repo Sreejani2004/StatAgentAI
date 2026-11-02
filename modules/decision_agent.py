@@ -81,15 +81,7 @@ def detect_numeric_columns(df, id_cols):
 # 4. DETECT CATEGORICAL COLUMNS
 # ==========================================================
 def detect_categorical_columns(df):
-
-    return [
-        col for col in df.columns
-        if (
-            df[col].dtype == "object"
-            or isinstance(df[col].dtype, pd.CategoricalDtype)
-        )
-    ]
-
+    return df.select_dtypes(include=["object", "category"]).columns.tolist()
 
 # ==========================================================
 # 5. DETECT TARGET COLUMN
